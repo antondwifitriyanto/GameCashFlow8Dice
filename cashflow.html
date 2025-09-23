@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cash Flow Management – Circular Board Game (v4 • 3D + Drag + Glow + JSON)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#03060d; --muted:#a9b8cc; --ink:#eaf2fb; --accent:#23c483; --accent2:#5aa9f3; --danger:#ff6b6b; --warn:#ffb020;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:'Inter',system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:#050a14}
+
+    /* Fullscreen layout */
+    .wrap{display:grid;grid-template-columns:360px 1fr;height:100vh;overflow:hidden}
+    .sidebar{padding:14px;background:linear-gradient(180deg,#0d1626,#0a1526);border-right:1px solid rgba(255,255,255,.06);overflow:auto}
+    h1{font-size:18px;margin:0 0 6px;font-weight:800}
+    .caps{letter-spacing:.35px;text-transform:uppercase;color:var(--muted);font-size:11px}
+    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:10px;margin-bottom:10px}
+    .row{display:flex;gap:8px;align-items:center}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+    .btn{cursor:pointer;border:1px solid rgba(255,255,255,.12);background:#0f1b2d;color:#e6eef7;padding:10px 12px;border-radius:12px;font-weight:700;transition:.2s}
+    .btn:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.25)}
+    .btn.primary{background:linear-gradient(180deg,#2dd19c,#19b67f);border-color:transparent;color:#02130c}
+    .btn.ghost{background:transparent}
+    .btn.danger{background:linear-gradient(180deg,#ff7a7a,#ff4d4f);color:#230000;border:0}
+    .small{font-size:12px;color:var(--muted)}
+    .money{font-weight:800;color:#8ff7c9}
+    .log{height:150px;overflow:auto;background:#091326;border-radius:12px;padding:8px;border:1px solid rgba(255,255,255,.06)}
+
+    /* 3D Stage */
+    .stage{position:relative;height:100vh;display:flex;align-items:center;justify-content:center;perspective:1200px;overflow:hidden}
+    .stage::before{content:"";position:absolute;inset:0;background:url('sandbox:/mnt/data/Component-173-–-2@2x.png') center/cover no-repeat;opacity:.28;filter:saturate(1) contrast(1.05);pointer-events:none}
+    .board3d{position:relative;width:min(92vmin,1300px);height:min(92vmin,1300px);transform-style:preserve-3d;transition:transform .1s linear}
+    .auto-rotate{animation: orbit 24s linear infinite}
+    @keyframes orbit{0%{transform:rotateX(18deg) rotateZ(0deg)}100%{transform:rotateX(18deg) rotateZ(360deg)}}
+
+    svg{position:absolute;inset:0;width:100%;height:100%}
+
+    /* Overlay controls */
+    .overlay{position:absolute;left:10px;bottom:10px;display:flex;gap:8px;align-items:center;background:rgba(0,0,0,.35);backdrop-filter:blur(6px);padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.08)}
+    input[type=range]{accent-color:#23c483}
+
+    /* Modal */
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+    .modal .content{width:min(520px,92vw);background:#0f1a2b;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px}
+    .modal .title{display:flex;gap:10px;align-items:center;margin-bottom:8px;font-weight:800}
+
+    /* Center HUD */
+    .hud{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) translateZ(36px);width:min(340px,70%);text-align:center}
+    .centerBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+
+    /* Glow path */
+    .pulse{animation:pulse 0.8s ease-in-out infinite;filter:url(#glow)}
+    @keyframes pulse{0%{opacity:.15}50%{opacity:.55}100%{opacity:.15}}
+
+    /* Drag hint */
+    .drag-hint{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.35);padding:6px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.08);font-size:12px;color:#cfe1ff;z-index:3}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="sidebar">
+      <h1>Cash Flow Management (v4 • 3D)</h1>
+      <div class="caps">Drag to rotate · Path glow · JSON-configurable</div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div><div class="caps">Pemain aktif</div><div id="activeName" style="font-weight:800">-</div></div>
+          <div><div class="caps">Putaran</div><div id="roundNo" style="font-weight:800">1</div></div>
+          <div><div class="caps">Tahun</div><div id="yearNo" style="font-weight:800">1</div></div>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <div><div class="small">Kas</div><div id="cash" class="money">Rp 0</div></div>
+          <div><div class="small">Pendapatan (Y)</div><div id="income" class="money">Rp 0</div></div>
+          <div><div class="small">Konsumsi (C)</div><div id="cons" class="money">Rp 0</div></div>
+          <div><div class="small">Tabungan (S)</div><div id="save" class="money">Rp 0</div></div>
+          <div><div class="small">Portofolio (I)</div><div id="inv" class="money">Rp 0</div></div>
+          <div><div class="small">Kekayaan Bersih</div><div id="netw" class="money">Rp 0</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid3">
+          <button id="rollBtn" class="btn primary">🎲 Kocok D8</button>
+          <button id="endBtn" class="btn ghost">⏭️ Akhiri Giliran</button>
+          <button id="resetBtn" class="btn danger">🔄 Reset</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="saveGameBtn" class="btn">💾 Simpan</button>
+          <button id="loadGameBtn" class="btn">📂 Muat</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid2">
+          <button class="btn" onclick="quickDeposit(500000)">+ Tabung 500k</button>
+          <button class="btn" onclick="quickWithdraw(500000)">− Ambil 500k</button>
+          <button class="btn" onclick="buyInvestment('reksadana',1000000)">Beli Reksadana 1jt</button>
+          <button class="btn" onclick="buyInvestment('saham',1000000)">Beli Saham 1jt</button>
+          <button class="btn" onclick="buyInvestment('emas',500000)">Beli Emas 500k</button>
+          <button class="btn" onclick="buyInvestment('obligasi',1000000)">Beli Obligasi 1jt</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="small">Log</div>
+        <div id="log" class="log small"></div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <div class="drag-hint">💡 Drag papan untuk rotasi (mouse/geser)</div>
+      <div id="board3d" class="board3d auto-rotate">
+        <!-- SVG board plane -->
+        <svg id="board" viewBox="-500 -500 1000 1000" aria-label="Papan permainan berbentuk lingkaran 3D">
+          <!-- Inline SVG icons as symbols (no external URLs) -->
+          <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="6" result="g"/>
+              <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <symbol id="ico-start" viewBox="0 0 24 24"><path fill="#42e3a0" d="M4 4h4l4 4 4-4h4v4l-4 4 4 4v4h-4l-4-4-4 4H4v-4l4-4-4-4z"/></symbol>
+            <symbol id="ico-income" viewBox="0 0 24 24"><path fill="#1fbf89" d="M12 2l3 5h-2v8h-2V7H9l3-5zm-7 18h14v2H5z"/></symbol>
+            <symbol id="ico-consume" viewBox="0 0 24 24"><path fill="#f59e0b" d="M3 6h18l-2 10H5L3 6zm4 12a3 3 0 106 0H7z"/></symbol>
+            <symbol id="ico-save" viewBox="0 0 24 24"><path fill="#60a5fa" d="M4 7h16v10H4V7zm2 2v6h12V9H6zm3 7h6v2H9z"/></symbol>
+            <symbol id="ico-invest" viewBox="0 0 24 24"><path fill="#a78bfa" d="M4 18h16v2H4v-2zm2-3l3-3 2 2 5-5 2 2-7 7-2-2-3 3-2-1z"/></symbol>
+            <symbol id="ico-chance" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#22d3ee"/><path fill="#003b49" d="M11 6h2v6h-2V6zm0 8h2v2h-2v-2z"/></symbol>
+            <symbol id="ico-risk" viewBox="0 0 24 24"><path fill="#ef4444" d="M1 21L12 2l11 19H1zm12-3h-2v2h2v-2zm0-8h-2v6h2V10z"/></symbol>
+            <symbol id="ico-tax" viewBox="0 0 24 24"><path fill="#eab308" d="M4 4h16v4H4V4zm0 6h16v10H4V10zm3 2l3 3-3 3 1.5 1.5 3-3 3 3 1.5-1.5-3-3 3-3-1.5-1.5-3 3-3-3L7 12z"/></symbol>
+            <symbol id="ico-payday" viewBox="0 0 24 24"><path fill="#34d399" d="M4 7h16v10H4V7zm8 1a4 4 0 110 8 4 4 0 010-8z"/></symbol>
+          </defs>
+        </svg>
+        <!-- HUD floating above board -->
+        <div class="hud">
+          <div class="caps">Langkah terakhir</div>
+          <div id="lastRoll" style="font-size:34px;font-weight:800">-</div>
+          <div id="tileInfo" class="small" style="margin-top:-2px"></div>
+          <div class="centerBtns">
+            <button class="btn" onclick="centerAction('SAVE')">SAVING</button>
+            <button class="btn" onclick="centerAction('INVEST')">INVEST</button>
+          </div>
+        </div>
+      </div>
+      <!-- Overlay controls -->
+      <div class="overlay">
+        <label class="small">Tilt</label><input id="tilt" type="range" min="0" max="60" value="18">
+        <label class="small">Rot Z</label><input id="rot" type="range" min="0" max="360" value="0">
+        <label class="small"><input id="autorun" type="checkbox" checked> Auto-rotate</label>
+      </div>
+    </section>
+  </div>
+
+  <!-- Player Setup Modal -->
+  <div id="playerModal" class="modal" role="dialog" aria-modal="true">
+    <div class="content">
+      <div class="title">Pilih Jumlah Pemain (maks 4)</div>
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <label>Jumlah: <select id="playerCount"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></label>
+      </div>
+      <div id="names" class="row" style="gap:6px;flex-direction:column;margin-top:8px"></div>
+      <div style="text-align:right;margin-top:10px"><button class="btn primary" onclick="startGameFromModal()">Mulai</button></div>
+    </div>
+  </div>
+
+  <!-- Event Modal -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true">
+    <div class="content">
+      <div class="title" id="cardTitle">Kartu</div>
+      <p id="cardText" style="margin:6px 0 10px"></p>
+      <div style="text-align:right"><button class="btn" onclick="hideModal()">OK</button></div>
+    </div>
+  </div>
+
+  <script>
+  // ===== JSON CONFIGURABLE BOARD =====
+  const boardConfig = {
+    size: 24,
+    tiles: [
+      'START','INCOME','CONSUME','SAVE','INVEST','CHANCE','CONSUME','INCOME',
+      'RISK','INVEST','SAVE','TAX','INCOME','CONSUME','INVEST','CHANCE','SAVE','RISK',
+      'INCOME','CONSUME','INVEST','SAVE','TAX','PAYDAY'
+    ]
+  };
+
+  // ===== Utilities & Sound
+  const fmt = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(n);
+  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+  const rand=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+  function log(msg){ const el=document.getElementById('log'); const t=new Date().toLocaleTimeString('id-ID',{hour12:false}); el.innerHTML = `<div>[${t}] ${msg}</div>` + el.innerHTML; }
+
+  const AC = new (window.AudioContext||window.webkitAudioContext)();
+  function blip(freq=600,len=0.06,vol=.12){ const o=AC.createOscillator(); const g=AC.createGain(); o.type='square'; o.frequency.value=freq; o.connect(g); g.connect(AC.destination); g.gain.setValueAtTime(vol,AC.currentTime); g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+len); o.start(); o.stop(AC.currentTime+len); }
+  function diceSfx(){ blip(700,0.05); setTimeout(()=>blip(500,0.05),60); setTimeout(()=>blip(900,0.05),120) }
+  function stepSfx(){ blip(420,0.04,.09) }
+
+  // ===== Tile meta (colors map to inline symbols)
+  const META={
+    START:{label:'START/GO', color:'#42e3a0', icon:'#ico-start'},
+    INCOME:{label:'INCOME', color:'#1fbf89', icon:'#ico-income'},
+    CONSUME:{label:'CONSUME', color:'#f59e0b', icon:'#ico-consume'},
+    SAVE:{label:'SAVING', color:'#60a5fa', icon:'#ico-save'},
+    INVEST:{label:'INVEST', color:'#a78bfa', icon:'#ico-invest'},
+    CHANCE:{label:'OPPORTUNITY', color:'#22d3ee', icon:'#ico-chance'},
+    RISK:{label:'RISK', color:'#ef4444', icon:'#ico-risk'},
+    TAX:{label:'TAX', color:'#eab308', icon:'#ico-tax'},
+    PAYDAY:{label:'PAYDAY', color:'#34d399', icon:'#ico-payday'},
+  }
+
+  // ===== Cards & Assets
+  const chanceDeck=[
+    {txt:'Bonus proyek! Tambahan gaji bulan ini.', effect:p=>addCash(p,rand(500000,1500000))},
+    {txt:'Dividen tahunan portofolio.', effect:p=>addCash(p,Math.round(p.portfolio.total*0.03))},
+    {txt:'Side-hustle laku keras. Pendapatan ekstra.', effect:p=>addCash(p,rand(400000,1200000))},
+    {txt:'Harga emas naik 5%.', effect:p=>adjustAsset(p,'emas',0.05)},
+    {txt:'Saham rebound +4%.', effect:p=>adjustAsset(p,'saham',0.04)},
+  ];
+  const riskDeck=[
+    {txt:'Perbaikan rumah mendadak.', effect:p=>addCash(p,-rand(300000,1200000))},
+    {txt:'Gadget rusak, harus ganti.', effect:p=>addCash(p,-rand(300000,900000))},
+    {txt:'Saham terkoreksi -6%.', effect:p=>adjustAsset(p,'saham',-0.06)},
+    {txt:'Biaya kesehatan tak terduga.', effect:p=>addCash(p,-rand(400000,1200000))},
+    {txt:'Inflasi naik, biaya hidup +5% bulan ini.', effect:p=>consume(p,Math.round(p.baselineC*0.05))},
+  ];
+
+  const products={ saham:{name:'Saham', drift:0.02, vol:0.08}, reksadana:{name:'Reksa Dana', drift:0.012, vol:0.03}, emas:{name:'Emas', drift:0.008, vol:0.02}, obligasi:{name:'Obligasi', drift:0.006, vol:0.01} };
+
+  // ===== State
+  const state={ round:1, year:1, active:0, rolling:false, players:[] };
+
+  // ===== SVG/Board
+  const svg=document.getElementById('board');
+  let tokenNodes=[]; let segNodes=[]; let glowLayer=null; let iconLayer=null; let labelLayer=null;
+
+  function buildBoard(){
+    svg.innerHTML='';
+    const rOuter=440, rInner=360, cx=0, cy=0;
+
+    const ring=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    ring.setAttribute('cx',cx); ring.setAttribute('cy',cy); ring.setAttribute('r',rOuter+16);
+    ring.setAttribute('fill','#0a1425'); ring.setAttribute('stroke','#152641'); ring.setAttribute('stroke-width','18');
+    svg.appendChild(ring);
+
+    glowLayer=document.createElementNS('http://www.w3.org/2000/svg','g');
+    iconLayer=document.createElementNS('http://www.w3.org/2000/svg','g');
+    labelLayer=document.createElementNS('http://www.w3.org/2000/svg','g');
+
+    segNodes=[];
+    for(let i=0;i<boardConfig.size;i++){
+      const type=boardConfig.tiles[i]; const meta=META[type];
+      const ang=(i/boardConfig.size)*Math.PI*2 - Math.PI/2;
+      const x1=cx + Math.cos(ang)*(rOuter), y1=cy + Math.sin(ang)*(rOuter);
+      const x2=cx + Math.cos(ang)*(rInner), y2=cy + Math.sin(ang)*(rInner);
+      const seg=document.createElementNS('http://www.w3.org/2000/svg','line');
+      seg.setAttribute('x1',x1); seg.setAttribute('y1',y1); seg.setAttribute('x2',x2); seg.setAttribute('y2',y2);
+      seg.setAttribute('stroke', meta.color); seg.setAttribute('stroke-width','24'); seg.setAttribute('stroke-linecap','round');
+      svg.appendChild(seg); segNodes.push(seg);
+
+      const ri=(rInner+rOuter)/2, ix=cx+Math.cos(ang)*ri, iy=cy+Math.sin(ang)*ri;
+      const use=document.createElementNS('http://www.w3.org/2000/svg','use');
+      use.setAttributeNS('http://www.w3.org/1999/xlink','href', meta.icon); use.setAttribute('x', ix-16); use.setAttribute('y', iy-16); use.setAttribute('width',32); use.setAttribute('height',32);
+      iconLayer.appendChild(use);
+
+      const lx=cx+Math.cos(ang)*(rInner-28), ly=cy+Math.sin(ang)*(rInner-28);
+      const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+      lbl.setAttribute('x',lx); lbl.setAttribute('y',ly); lbl.setAttribute('fill','#dbe7f5'); lbl.setAttribute('font-size','10'); lbl.setAttribute('text-anchor','middle'); lbl.textContent=META[type].label; labelLayer.appendChild(lbl);
+
+      if(type==='START'){
+        const l2=document.createElementNS('http://www.w3.org/2000/svg','text');
+        l2.setAttribute('x',lx); l2.setAttribute('y',ly-14); l2.setAttribute('fill','#42e3a0'); l2.setAttribute('font-size','11'); l2.setAttribute('font-weight','800'); l2.setAttribute('text-anchor','middle'); l2.textContent='GO + BONUS'; labelLayer.appendChild(l2);
+      }
+    }
+
+    svg.appendChild(glowLayer); svg.appendChild(iconLayer); svg.appendChild(labelLayer);
+
+    const center=document.createElementNS('http://www.w3.org/2000/svg','circle'); center.setAttribute('cx',0); center.setAttribute('cy',0); center.setAttribute('r',180); center.setAttribute('fill','#0d1b2f'); center.setAttribute('stroke','#1f314b'); center.setAttribute('stroke-width','2'); svg.appendChild(center);
+
+    // tokens
+    tokenNodes = state.players.map((p,idx)=>{ const g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('filter','url(#glow)'); svg.appendChild(g); return g; });
+    drawTokens();
+  }
+
+  function posFor(i, rr){ const ang=(i/boardConfig.size)*Math.PI*2 - Math.PI/2; return {x:Math.cos(ang)*rr, y:Math.sin(ang)*rr} }
+
+  function drawTokens(){ tokenNodes.forEach((g,idx)=>{ const p=state.players[idx]; const rr=405-idx*16; const {x,y}=posFor(p.pos, rr); g.innerHTML='';
+      // character avatar (simple person)
+      const body=document.createElementNS('http://www.w3.org/2000/svg','rect'); body.setAttribute('x',x-7); body.setAttribute('y',y-10); body.setAttribute('width',14); body.setAttribute('height',16); body.setAttribute('rx',3);
+      body.setAttribute('fill', ['#5aa9f3','#f59e0b','#ef4444','#10b981'][idx%4]); g.appendChild(body);
+      const head=document.createElementNS('http://www.w3.org/2000/svg','circle'); head.setAttribute('cx',x); head.setAttribute('cy',y-14); head.setAttribute('r',6); head.setAttribute('fill','#ffe0bd'); g.appendChild(head);
+      const eye=document.createElementNS('http://www.w3.org/2000/svg','circle'); eye.setAttribute('cx',x-2); eye.setAttribute('cy',y-15); eye.setAttribute('r',1.2); eye.setAttribute('fill','#222'); g.appendChild(eye);
+      const eye2=document.createElementNS('http://www.w3.org/2000/svg','circle'); eye2.setAttribute('cx',x+2); eye2.setAttribute('cy',y-15); eye2.setAttribute('r',1.2); eye2.setAttribute('fill','#222'); g.appendChild(eye2);
+  }); }
+
+  function highlightPath(from, steps){ glowLayer.innerHTML=''; for(let k=1;k<=steps;k++){ const i=(from+k)%boardConfig.size; const base=segNodes[i].cloneNode(); base.setAttribute('stroke','#ffffff'); base.setAttribute('stroke-width','28'); base.setAttribute('opacity','0.25'); base.setAttribute('class','pulse'); glowLayer.appendChild(base);} }
+
+  // ===== Gameplay helpers
+  function cur(){ return state.players[state.active] }
+  function updateHUD(){ const p=cur(); activeName.textContent=p.name; roundNo.textContent=state.round; yearNo.textContent=state.year; cash.textContent=fmt(p.cash); income.textContent=fmt(p.income); cons.textContent=fmt(p.baselineC); save.textContent=fmt(p.saving); inv.textContent=fmt(p.portfolio.total); netw.textContent=fmt(p.cash+p.saving+p.portfolio.total); }
+
+  function addCash(p,amt){ p.cash+=amt; updateHUD(); log(`${p.name}: ${amt>=0?'+':'−'} ${fmt(Math.abs(amt))} ${amt>=0?'ditambahkan ke':'dikurangi dari'} kas`) }
+  function consume(p, extra=0){ const base=p.baselineC+extra; addCash(p,-base); log(`${p.name}: Konsumsi (C) ${fmt(base)}`) }
+  function payday(p){ addCash(p,p.income); log(`${p.name}: PAYDAY menerima (Y) ${fmt(p.income)}`) }
+  function deposit(p,amt){ amt=clamp(amt,0,p.cash); p.cash-=amt; p.saving+=amt; updateHUD(); log(`${p.name}: Menabung (S) ${fmt(amt)}`) }
+  function withdraw(p,amt){ amt=clamp(amt,0,p.saving); p.saving-=amt; p.cash+=amt; updateHUD(); log(`${p.name}: Ambil tabungan ${fmt(amt)}`) }
+  function buyInvestment(kind,amt){ const p=cur(); amt=clamp(amt,0,p.cash); if(amt<=0){log('Dana tidak cukup.');return} p.cash-=amt; const h=p.portfolio.holdings; h[kind]=(h[kind]||0)+amt; recalcPortfolio(p); log(`${p.name}: Beli ${products[kind].name} ${fmt(amt)}`); updateHUD() }
+  function adjustAsset(p,kind,rate){ const h=p.portfolio.holdings; if(!h[kind]){log(`Tidak ada ${products[kind].name}`);return} h[kind]=Math.max(0,Math.round(h[kind]*(1+rate))); recalcPortfolio(p); updateHUD(); log(`${p.name}: ${products[kind].name} ${rate>0?'+':''}${Math.round(rate*100)}%`) }
+  function recalcPortfolio(p){ const h=p.portfolio.holdings; let tot=0; for(const k in h) tot+=h[k]; p.portfolio.total=tot }
+  function portfolioDrift(p){ const h=p.portfolio.holdings; for(const k in h){ const prod=products[k]; const shock=prod.drift+(Math.random()*2-1)*prod.vol; h[k]=Math.max(0,Math.round(h[k]*(1+shock))); } recalcPortfolio(p); updateHUD(); if(p.portfolio.total>0) log(`${p.name}: Nilai portofolio diperbarui`) }
+
+  function showModal(title,text){ const m=document.getElementById('modal'); document.getElementById('cardTitle').textContent=title; document.getElementById('cardText').textContent=text; m.style.display='flex' }
+  function hideModal(){ document.getElementById('modal').style.display='none' }
+  window.hideModal=hideModal;
+
+  function drawCard(deck, title){ const c=deck[rand(0,deck.length-1)]; showModal(title, c.txt); c.effect(cur()); }
+
+  function applyTile(p,type){ const meta=META[type]; tileInfo.textContent=meta.label; switch(type){ case 'START': addCash(p, 250000); log('Bonus GO +250k'); break; case 'PAYDAY': payday(p); break; case 'INCOME': addCash(p, Math.round(p.income/2)); break; case 'CONSUME': consume(p); break; case 'SAVE': log('SAVING: gunakan tombol Tabung/Ambil atau tombol pusat.'); break; case 'INVEST': log('INVEST: gunakan tombol pembelian portofolio atau tombol pusat.'); break; case 'TAX': addCash(p,-Math.round(p.income*0.1)); log('Pajak 10% dari Y dibayar.'); break; case 'CHANCE': drawCard(chanceDeck,'Opportunity'); break; case 'RISK': drawCard(riskDeck,'Risk'); break; }
+  }
+
+  function animateMoveSteps(steps){ if(state.rolling) return; state.rolling=true; const p=cur(); let remaining=steps; const from=p.pos; highlightPath(from, steps); const timer=setInterval(()=>{ p.pos=(p.pos+1)%boardConfig.size; drawTokens(); stepSfx(); remaining--; if(p.pos===0){ addCash(p,500000); log(`${p.name} melewati GO → bonus lap ${fmt(500000)}`) } if(remaining<=0){ clearInterval(timer); glowLayer.innerHTML=''; applyTile(p, boardConfig.tiles[p.pos]); updateHUD(); state.rolling=false; } }, 260); }
+
+  function rollD8(){ if(state.rolling) return; diceSfx(); const steps=rand(1,8); lastRoll.textContent='?'; let c=0; const f=setInterval(()=>{ lastRoll.textContent=rand(1,8); c++; if(c>10){ clearInterval(f); lastRoll.textContent=steps; animateMoveSteps(steps); } },60) }
+
+  function nextPlayer(){ if(state.rolling) return; state.active=(state.active+1)%state.players.length; if(state.active===0){ state.round++; if((state.round-1)%12===0){ state.year++; state.players.forEach(portfolioDrift); state.players.forEach(p=>{ if(p.saving>0){ const r=Math.round(p.saving*0.02); p.saving+=r; log(`${p.name}: Bunga tabungan +${fmt(r)}`) } }) } } updateHUD(); drawTokens() }
+
+  function centerAction(kind){ if(kind==='SAVE'){ log('Center SAVING: gunakan Tabung/Ambil untuk kelola likuiditas.'); } else { log('Center INVEST: pilih aset (saham, reksadana, emas, obligasi).'); } }
+  window.centerAction=centerAction;
+
+  // ===== Controls
+  document.getElementById('rollBtn').onclick=rollD8;
+  document.getElementById('endBtn').onclick=nextPlayer;
+  document.getElementById('resetBtn').onclick=()=>{ if(confirm('Mulai ulang permainan?')) location.reload() };
+  document.getElementById('saveGameBtn').onclick=()=>{ localStorage.setItem('cfm-v4', JSON.stringify({state, boardConfig})); log('Game tersimpan di browser.') };
+  document.getElementById('loadGameBtn').onclick=()=>{ const raw=localStorage.getItem('cfm-v4'); if(!raw){log('Tidak ada save.'); return} const s=JSON.parse(raw); Object.assign(state,s.state); Object.assign(boardConfig,s.boardConfig); buildBoard(); drawTokens(); updateHUD(); log('Save dimuat.') };
+
+  // ===== 3D board transform + Drag-to-rotate
+  const board3d=document.getElementById('board3d');
+  function apply3D(){ const tilt=document.getElementById('tilt').value; const rot=document.getElementById('rot').value; board3d.classList.remove('auto-rotate'); board3d.style.transform=`rotateX(${tilt}deg) rotateZ(${rot}deg)` }
+  document.getElementById('tilt').oninput=apply3D; document.getElementById('rot').oninput=apply3D; document.getElementById('autorun').onchange=(e)=>{ if(e.target.checked){ board3d.classList.add('auto-rotate'); } else { board3d.classList.remove('auto-rotate'); } };
+
+  let dragging=false, startX=0, startAngle=0; function getRot(){ const val=document.getElementById('rot'); return +val.value }
+  board3d.addEventListener('mousedown',e=>{ dragging=true; board3d.classList.remove('auto-rotate'); startX=e.clientX; startAngle=getRot(); e.preventDefault(); });
+  window.addEventListener('mousemove',e=>{ if(!dragging) return; const dx=e.clientX-startX; const val=document.getElementById('rot'); val.value=(startAngle+dx)%360; apply3D(); });
+  window.addEventListener('mouseup',()=>dragging=false);
+  // touch
+  board3d.addEventListener('touchstart',e=>{ dragging=true; startX=e.touches[0].clientX; startAngle=getRot(); },{passive:true});
+  board3d.addEventListener('touchmove',e=>{ if(!dragging) return; const dx=e.touches[0].clientX-startX; const val=document.getElementById('rot'); val.value=(startAngle+dx)%360; apply3D(); },{passive:true});
+  board3d.addEventListener('touchend',()=>dragging=false);
+
+  // ===== Player setup modal
+  function openPlayerModal(){ const pm=document.getElementById('playerModal'); pm.style.display='flex'; buildNameInputs(); }
+  function buildNameInputs(){ const n=document.getElementById('names'); n.innerHTML=''; const cnt=+document.getElementById('playerCount').value; for(let i=1;i<=cnt;i++){ const row=document.createElement('div'); row.className='row'; row.innerHTML=`<label class="small">P${i} nama: <input id="name${i}" value="P${i}" style="background:#0f1b2d;color:#e6eef7;border:1px solid rgba(255,255,255,.12);padding:6px;border-radius:8px"></label>`; n.appendChild(row);} }
+  document.getElementById('playerCount').addEventListener('change',buildNameInputs);
+  function startGameFromModal(){ const cnt=+document.getElementById('playerCount').value; state.players=[]; for(let i=1;i<=cnt;i++){ state.players.push({name:document.getElementById('name'+i).value||('P'+i), pos:Math.floor((i-1)*(boardConfig.size/cnt)), cash:5000000, income:6500000+(i*200000), baselineC:3800000+(i*120000), saving:0, portfolio:{holdings:{}, total:0}}) } document.getElementById('playerModal').style.display='none'; buildBoard(); updateHUD(); log(`Permainan dimulai untuk ${cnt} pemain.`) }
+  window.startGameFromModal=startGameFromModal;
+
+  // Public quick fn
+  function quickDeposit(n){ deposit(cur(),n) } function quickWithdraw(n){ withdraw(cur(),n) }
+  window.quickDeposit=quickDeposit; window.quickWithdraw=quickWithdraw; window.buyInvestment=(k,a)=>buyInvestment(k,a);
+
+  // Boot
+  openPlayerModal();
+  </script>
+</body>
+</html>
